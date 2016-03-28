@@ -1,0 +1,6 @@
+# depslib dependency file v1.0
+1459179059 source:/home/yzhang/workspace/TrajectorySimilarity/TrajectorySimilarity/main.cpp
+	<iostream>
+	<opencv/cv.hpp>
+	<opencv/highgui.h>
+
