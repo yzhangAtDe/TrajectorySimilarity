@@ -11,6 +11,7 @@
 				<Option object_output="obj/Debug/" />
 				<Option type="1" />
 				<Option compiler="gcc" />
+				<Option parameters=" /home/yzhang/Videos/KTH/boxing/person01_boxing_d1_uncomp.avi 1.5 4.5 " />
 				<Compiler>
 					<Add option="-g" />
 					<Add directory="/usr/local/include/opencv" />
@@ -54,6 +55,7 @@
 		<Extensions>
 			<code_completion />
 			<debugger />
+			<envvars />
 		</Extensions>
 	</Project>
 </CodeBlocks_project_file>
