@@ -2,6 +2,8 @@
 #include<opencv/cv.hpp>
 #include<opencv/highgui.h>
 
+#define PI 3.1415926
+
 using namespace std;
 using namespace cv;
 
@@ -81,22 +83,28 @@ void Gradient (const Mat& src, Mat& gradx, Mat& grady, bool use_sobel = true)
 }
 
 
-void MotionTensorScore (const cv::Mat& frame_current, const cv::Mat& frame_previous, cv::Mat& score, double rho)
+void MotionTensorScore1 (const cv::Mat& frame_current, const cv::Mat& frame_previous, const cv::Mat& frame_previous2,cv::Mat& score, double rho)
+/// this method applies three frames instead of two. It averages the temporal derivatives so as to eliminate the influence of noise.
 {
 
     cv::Mat frame_current_gradx, frame_current_grady ;
     cv::Mat frame_previous_gradx, frame_previous_grady;
+    cv::Mat frame_previous2_gradx, frame_previous2_grady;
+
     cv::Mat gradx, grady, gradt;
     cv::Mat J11, J12, J13, J22, J23, J33, H;
     Mat trace_map, det_map;
+    cv::Mat eigenvalue;
 
 
     // compute gradients
     Gradient(frame_current, frame_current_gradx, frame_current_grady );
     Gradient(frame_previous, frame_previous_gradx, frame_previous_grady);
-    gradt = frame_current-frame_previous;
-    gradx = (frame_current_gradx+frame_previous_gradx)/2.0;
-    grady = (frame_current_grady+frame_previous_grady)/2.0;
+    Gradient(frame_previous2, frame_previous2_gradx, frame_previous2_grady);
+
+    gradt = (frame_current+frame_previous)/2.0 - (frame_previous2+frame_previous)/2.0;
+    gradx = (frame_current_gradx+frame_previous_gradx + frame_previous2_gradx)/3.0;
+    grady = (frame_current_grady+frame_previous_grady + frame_previous2_gradx)/3.0;
 
 
 
@@ -136,6 +144,86 @@ void MotionTensorScore (const cv::Mat& frame_current, const cv::Mat& frame_previ
 }
 
 
+
+void MotionTensorScore2 (const cv::Mat& frame_current, const cv::Mat& frame_previous,cv::Mat& score, double rho)
+/// This function uses two frames. Instead of following Laptev's method, the score is evaluated by the minimal eigenvalue of
+/// the motion tensor. This can be regarded as a spatial-temporal 'good feature for tracking'.
+/// Here the non-iterative method of K.M. Hasan et al. is used.
+/// [1] Analytical Computation of the Eigenvalues and Eigenvectors in DT-MRI
+
+
+{
+
+    cv::Mat frame_current_gradx, frame_current_grady ;
+    cv::Mat frame_previous_gradx, frame_previous_grady;
+
+    cv::Mat gradx, grady, gradt;
+    cv::Mat J11, J12, J13, J22, J23, J33, H;
+    Mat I1, I2, I3;
+    cv::Mat eigenvalue;
+
+
+    // compute gradients
+    Gradient(frame_current, frame_current_gradx, frame_current_grady );
+    Gradient(frame_previous, frame_previous_gradx, frame_previous_grady);
+
+    gradt = (frame_current-frame_previous)/2.0 ;
+    gradx = (frame_current_gradx+frame_previous_gradx )/2.0;
+    grady = (frame_current_grady+frame_previous_grady)/2.0;
+
+
+
+    // motion tensor smoothing, only for spatial scales
+    cv::GaussianBlur(gradx.mul(gradx), J11, cv::Size(0,0),rho, rho );
+
+    cv::GaussianBlur(gradx.mul(grady), J12, cv::Size(0,0),rho, rho );
+
+    cv::GaussianBlur(gradx.mul(gradt), J13, cv::Size(0,0),rho, rho );
+
+    cv::GaussianBlur(grady.mul(grady), J22, cv::Size(0,0),rho, rho );
+    cv::GaussianBlur(grady.mul(gradt), J23, cv::Size(0,0), rho, rho);
+    cv::GaussianBlur(gradt.mul(gradt), J33, cv::Size(0,0), rho, rho);
+
+
+    // tensor invariants
+    I1 = J11+J22+J33;
+    I2 = J11.mul(J22) + J11.mul(J33) + J22.mul(J33) - J12.mul(J12) - J13.mul(J13) - J23.mul(J23);
+    I3 = (J11.mul(J22)).mul(J33) + 2*(J12.mul(J23)).mul(J13)
+    - (J13.mul(J13)).mul(J22) - (J12.mul(J12)).mul(J33)
+    - (J11.mul(J23)).mul(J23);
+
+    double v, s, phi;
+    int i,j;
+    score.create(I1.rows, I1.cols, CV_64F);
+
+    for (j = 0; j < J11.rows; j++)
+    {
+        double* ptr_I1 = (double*) I1.ptr(j);
+        double* ptr_I2 = (double*) I2.ptr(j);
+        double* ptr_I3 = (double*) I3.ptr(j);
+        double* ptr_score = (double*) score.ptr(j);
+
+        for(i = 0; i < J11.cols; i++)
+        {
+            v = (ptr_I1[i]/3.0)*(ptr_I1[i]/3.0) - ptr_I2[i]/3.0;
+
+            s = (ptr_I1[i]/3.0)*(ptr_I1[i]/3.0)*(ptr_I1[i]/3.0)-ptr_I1[i]*ptr_I2[i]/6.0+ptr_I3[i]/2.0;
+
+            phi = std::acos(s/v*std::sqrt(1.0/v));
+
+            ptr_score[i] = ptr_I1[i]/3 - 2*std::sqrt(v) * std::cos(PI/3.0-phi);
+
+
+        }
+
+    }
+
+
+}
+
+
+
+
 void Dilation(const cv::Mat& src, cv::Mat& dst, int kernelsize=5)
 // kernelsize is only odd!
 {
@@ -147,6 +235,9 @@ void Dilation(const cv::Mat& src, cv::Mat& dst, int kernelsize=5)
     cv::dilate( src, dst, element );
 
 }
+
+
+
 
 
 
@@ -177,13 +268,16 @@ int main (int argc, char** argv)
 
     // variable configuration
     std::vector<cv::KeyPoint> corners;
-    cv::Mat frame,frame_current, frame_previous;
+    cv::Mat frame,frame_current, frame_previous, frame_previous2;
     cv::Mat score, score_roi, score_peak, score_dilate;
 
     int t=0;
     int i,j,s;
     double min_val, max_val;
 
+    Mat fgMaskMOG2;
+    Ptr<BackgroundSubtractor> pMOG2;
+    pMOG2 = createBackgroundSubtractorMOG2();
 
 
 
@@ -195,6 +289,14 @@ int main (int argc, char** argv)
 
         // read current frame from the video
         cap >> frame;
+        cv::Size size(200,150);
+        cv::resize(frame,frame,size);
+
+        //Gamma correction
+        frame.convertTo(frame,CV_32F);
+        cv::Ptr<Tonemap> map = cv::createTonemap(2.2f);
+        map -> process(frame,frame);
+        frame = frame*255;
 
         // convert the type of the frame from uchar to double
         cv::cvtColor(frame, frame_current, cv::COLOR_BGR2GRAY);
@@ -213,27 +315,31 @@ int main (int argc, char** argv)
         GaussianBlur(frame_current, frame_current, cv::Size(0,0), sigma,sigma, BORDER_REFLECT);
 
 
-        if(t>0)
+        int s_max=5;
+        if(t>1)
         {
 
-            /// scale-space representation, rho_s = pow(1.5,s)*rho, s = 1,2,3,...,5
-            for (s = 0; s < 5; s++)
-            {
-                MotionTensorScore (frame_current, frame_previous, score, rho*std::pow(1.6,s));
 
-                // find local maximum
-                Dilation(score, score_dilate,11);
-                score_peak = score_dilate-score;
-                score_peak.convertTo(score_peak, CV_32F);
+            /// scale-space representation, rho_s = pow(1.5,s)*rho, s = 1,2,3,...,5
+            for (s = 0; s < s_max; s++)
+            {
+//                MotionTensorScore2 (frame_current, frame_previous,score, rho*std::pow(2,s));
+//
+//                // find local maximum
+//                Dilation(score, score_dilate,7);
+//                score_peak = score_dilate-score;
+//                score_peak.convertTo(score_peak, CV_32F);
                 //cv::threshold(score_peak, score_peak, 0,255.0,cv::THRESH_BINARY );
 
                 // find ROI
-                score_roi = abs(score);
-                minMaxLoc(score_roi,&min_val,&max_val);
-                score_roi -= min_val;
-                convertScaleAbs(score_roi,score_roi,255/(max_val-min_val));
-                cv::threshold(score_roi, score_roi,10,255,cv::THRESH_BINARY_INV);
-                score_roi.convertTo(score_roi,CV_32F);
+//                score_roi = abs(score);
+//            //                cv::exp(score_roi, score_roi);
+//                minMaxLoc(score_roi,&min_val,&max_val);
+//                score_roi = 255* (score_roi-min_val)/(max_val-min_val);
+//                score_roi.convertTo(score_roi,CV_32F);
+//                cv::threshold(score_roi, score_roi,50,255,cv::THRESH_BINARY_INV);
+
+                pMOG2 ->apply(frame_current, fgMaskMOG2);
 
                 // extract key points
                 for (j = 0; j < score.rows; j++)
@@ -249,10 +355,11 @@ int main (int argc, char** argv)
                     }
                 }
 
-
             }
 
             cv::Mat frame_middle = (frame_current + frame_previous)/2.0;
+            imshow("segmentation",fgMaskMOG2);
+
             VideoKeypointDisplay(frame_middle, corners);
 
         }
@@ -260,7 +367,9 @@ int main (int argc, char** argv)
 
 
         // for the next frame
+        frame_previous.copyTo(frame_previous2);
         frame_current.copyTo(frame_previous);
+
         t++;
 
     }
