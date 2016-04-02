@@ -1,15 +1,19 @@
 # depslib dependency file v1.0
-<<<<<<< HEAD
-1459543337 source:/home/yzhang/workspace/TrajectorySimilarity/TrajectorySimilarity/main.cpp
-=======
-1459458469 source:/home/yzhang/workspace/TrajectorySimilarity/TrajectorySimilarity/main.cpp
->>>>>>> 4423757c600b69d544cbe17f94451497c1c7a586
+36892496 <<<<<<< HEAD
+
+1459611645 source:/home/yzhang/workspace/TrajectorySimilarity/TrajectorySimilarity/main.cpp
 	<iostream>
 	<opencv/cv.hpp>
 	<opencv/highgui.h>
 	"StipDetector.h"
 
-1459544100 /home/yzhang/workspace/TrajectorySimilarity/TrajectorySimilarity/include/StipDetector.h
+1459458469 3757c600b69d544cbe17f94451497c1c7a586
+	<iostream>
+	<opencv/cv.hpp>
+	<opencv/highgui.h>
+	"StipDetector.h"
+
+1459611456 /home/yzhang/workspace/TrajectorySimilarity/TrajectorySimilarity/include/StipDetector.h
 	<iostream>
 	<vector>
 	<highgui.h>
@@ -309,7 +313,7 @@
 1459521151 /home/yzhang/Libraries/bgslibrary/package_bgs/IBGS.h
 	<opencv2/opencv.hpp>
 
-1459545875 source:/home/yzhang/workspace/TrajectorySimilarity/TrajectorySimilarity/src/StipDetector.cpp
+1459611456 source:/home/yzhang/workspace/TrajectorySimilarity/TrajectorySimilarity/src/StipDetector.cpp
 	<cv.h>
 	<highgui.h>
 	"StipDetector.h"
