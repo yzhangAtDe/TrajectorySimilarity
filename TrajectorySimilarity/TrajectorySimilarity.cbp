@@ -16,6 +16,7 @@
 					<Add option="-g" />
 					<Add directory="/usr/local/include/opencv" />
 					<Add directory="include" />
+					<Add directory="/home/yzhang/Libraries" />
 				</Compiler>
 				<Linker>
 					<Add option="-lopencv_shape" />
